@@ -108,6 +108,27 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
         return [json.loads(line) for line in fh if line.strip()]
 
 
+# ---------------------------------------------------------------------------- parquet
+
+
+def save_parquet(path: Path, frame: Any) -> None:
+    """Atomically write a DataFrame to parquet (pandas import kept local)."""
+    import pandas as pd
+
+    def _w(tmp: Path) -> None:
+        frame.to_parquet(tmp, index=False)
+
+    if not isinstance(frame, pd.DataFrame):
+        raise TypeError("save_parquet expects a pandas DataFrame")
+    _atomic(path, _w)
+
+
+def load_parquet(path: Path) -> Any:
+    import pandas as pd
+
+    return pd.read_parquet(path)
+
+
 # ------------------------------------------------------------------------------ sample
 
 

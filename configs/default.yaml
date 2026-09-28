@@ -40,3 +40,47 @@ damage:
   fractal_roughness: 0.35
   crack_width_px: [3, 8]
   fracture_rim: false
+
+data:
+  data_dir: data/abo
+  # Categories with meaningful fracture semantics (SPEC.md §6.1); verified counts
+  # against the ABO catalog 2026-09-28 (>=400px main images, per product_type).
+  product_types:
+    - VASE
+    - DRINKING_CUP
+    - KITCHEN
+    - FOOD_SERVICE_SUPPLY
+    - LAMP
+    - LIGHT_FIXTURE
+    - LIGHT_BULB
+    - TOOLS
+    - HARDWARE
+    - HARDWARE_HANDLE
+    - CHAIR
+    - TABLE
+    - SOFA
+    - STOOL_SEATING
+    - OTTOMAN
+    - HOME_FURNITURE_AND_DECOR
+    - OFFICE_PRODUCTS
+  exclude_keywords: [shirt, t-shirt, dress, sock, pants, hoodie, jacket, blanket, towel, curtain, pillow, sheet, duvet]
+  min_side: 400
+  object_area_frac: [0.15, 0.70]
+  split_sizes:
+    gonogo: 100
+    train: 300
+    val: 100
+    test: 300
+  oversample_factor: 2.0
+  seed: 7
+
+segment:
+  border_px: 8
+  background_delta_e: 10.0
+  whiteness_delta_e: 6.0
+  whiteness_frac: 0.95
+  close_kernel: 5
+  min_area_frac: 0.05
+  max_area_frac: 0.90
+  crop_margin: 0.15
+  size: 512

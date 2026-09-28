@@ -86,6 +86,82 @@ class DamageCfg(Section):
     fracture_rim: bool = False  # optional realism (robustness experiment)
 
 
+# ------------------------------------------------------------------------------ data
+
+
+class DataCfg(Section):
+    """ABO subset selection and split sizes (SPEC.md §6.1, §6.3)."""
+
+    data_dir: Path = Path("data/abo")
+    product_types: list[str] = Field(
+        default_factory=lambda: [
+            "VASE",
+            "CUP",
+            "MUG",
+            "BOWL",
+            "LAMP",
+            "TOY",
+            "KITCHEN",
+            "HOME_FURNITURE_AND_DECOR",
+        ]
+    )
+    exclude_keywords: list[str] = Field(
+        default_factory=lambda: [
+            "shirt",
+            "t-shirt",
+            "dress",
+            "sock",
+            "pants",
+            "hoodie",
+            "jacket",
+            "blanket",
+            "towel",
+            "curtain",
+            "pillow",
+            "sheet",
+            "duvet",
+        ]
+    )
+    min_side: int = 400
+    object_area_frac: tuple[float, float] = (0.15, 0.70)
+    split_sizes: dict[str, int] = Field(
+        default_factory=lambda: {"gonogo": 100, "train": 300, "val": 100, "test": 300}
+    )
+    oversample_factor: float = 2.0  # candidate products per needed sample (rejections)
+    seed: int = 7
+
+
+# --------------------------------------------------------------------------- segment
+
+
+class SegmentCfg(Section):
+    """Object silhouette from background thresholding (SPEC.md §5.1)."""
+
+    border_px: int = 8
+    background_delta_e: float = 10.0  # pixel counts as object when ΔE76 to bg exceeds this
+    whiteness_delta_e: float = 6.0  # border pixels within this of bg colour = "white background"
+    whiteness_frac: float = 0.95
+    close_kernel: int = 5
+    min_area_frac: float = 0.05
+    max_area_frac: float = 0.90
+    crop_margin: float = 0.15
+    size: int = 512
+
+
+# ------------------------------------------------------------------------------- eval
+
+
+class EvalCfg(Section):
+    """Ground-truth metrics and selection-quality settings (SPEC.md §8)."""
+
+    lpips_net: str = "alex"
+    lpips_crop_margin: int = 16
+    lpips_min_crop: int = 128  # alexnet cannot handle very small crops
+    boundary_ring_px: int = 8
+    delta_e: str = "76"  # "76" | "2000"
+    pairwise_bootstrap: int = 1000
+
+
 # ------------------------------------------------------------------------------ root
 
 
@@ -93,6 +169,9 @@ class Cfg(Section):
     project: ProjectCfg = Field(default_factory=ProjectCfg)
     generator: GeneratorCfg = Field(default_factory=GeneratorCfg)
     damage: DamageCfg = Field(default_factory=DamageCfg)
+    data: DataCfg = Field(default_factory=DataCfg)
+    segment: SegmentCfg = Field(default_factory=SegmentCfg)
+    eval: EvalCfg = Field(default_factory=EvalCfg)
 
 
 # -------------------------------------------------------------------------- loading

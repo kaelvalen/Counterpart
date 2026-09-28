@@ -41,3 +41,21 @@ def contact_sheet(
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
     return path
+
+
+def side_by_side(images: list[np.ndarray], separator: int = 4) -> np.ndarray:
+    """Horizontally concatenate RGB images with thin grey separators."""
+    if not images:
+        raise ValueError("no images to concatenate")
+    sep = np.full((images[0].shape[0], separator, 3), 200, dtype=np.uint8)
+    parts: list[np.ndarray] = []
+    for i, img in enumerate(images):
+        if i > 0:
+            parts.append(sep)
+        parts.append(img)
+    return np.concatenate(parts, axis=1)
+
+
+def mask_rgb(mask: np.ndarray) -> np.ndarray:
+    """Render a bool mask as a white-on-black RGB image (for panels)."""
+    return np.repeat((mask.astype(np.uint8) * 255)[..., None], 3, axis=2)

@@ -10,13 +10,17 @@ import cv2
 import numpy as np
 import typer
 from rich.console import Console
+from rich.table import Table
 
 from counterpart import io as cio
 from counterpart.config import load_config
+from counterpart.data.prepare import run_prepare
+from counterpart.eval.evaluate import run_evaluate
+from counterpart.generate.candidates import run_generate
 from counterpart.generate.sd_inpaint import InpaintGenerator, dilate_mask
 from counterpart.generate.variants import plan_candidates
 from counterpart.types import Candidate
-from counterpart.viz.panels import contact_sheet
+from counterpart.viz.panels import contact_sheet, mask_rgb, side_by_side
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 console = Console()
@@ -170,6 +174,150 @@ def demo(
 
     shutil.copyfile(image, sample_dir / "input.png")
     console.print("done.")
+
+
+@app.command()
+def prepare(
+    split: Annotated[str, typer.Option("--split", help="gonogo | train | val | test")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    limit: Annotated[int | None, typer.Option("--limit", help="max samples to prepare")] = None,
+    workers: Annotated[int, typer.Option("--workers")] = 8,
+    overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+    i_know: Annotated[
+        bool,
+        typer.Option(
+            "--i-know", help="required to touch the test split before Faz 5 (SPEC.md §13)"
+        ),
+    ] = False,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """ABO image + synthetic damage -> sample cache (Faz 1). Resumable."""
+    if split == "test" and not i_know:
+        console.print(
+            "[red]The test split is gated until Faz 5 (SPEC.md §13). "
+            "Pass --i-know if you really mean it.[/red]"
+        )
+        raise typer.Exit(code=2)
+    cfg = load_config(config)
+    summary = run_prepare(
+        cfg, split, experiment=experiment, limit=limit, workers=workers, overwrite=overwrite
+    )
+    table = Table(title=f"prepare — {experiment}/{split}")
+    table.add_column("key")
+    table.add_column("value")
+    for key, value in summary.items():
+        table.add_row(str(key), str(value))
+    console.print(table)
+
+
+@app.command()
+def generate(
+    split: Annotated[str, typer.Option("--split")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    n: Annotated[int | None, typer.Option("--n", help="override generator.n_candidates")] = None,
+    limit: Annotated[int | None, typer.Option("--limit", help="max samples")] = None,
+    overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+    i_know: Annotated[bool, typer.Option("--i-know", help="test split gate")] = False,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """Generate N candidates per prepared sample (Faz 2). Resumable; GT never touched."""
+    if split == "test" and not i_know:
+        console.print("[red]The test split is gated until Faz 5 (SPEC.md §13).[/red]")
+        raise typer.Exit(code=2)
+    cfg = load_config(config)
+    if n is not None:
+        cfg.generator.n_candidates = n
+    summary = run_generate(
+        cfg, split, experiment=experiment, limit=limit, overwrite=overwrite, verbose=True
+    )
+    table = Table(title=f"generate — {experiment}/{split}")
+    table.add_column("key")
+    table.add_column("value")
+    for key, value in summary.items():
+        table.add_row(str(key), str(value))
+    console.print(table)
+
+
+@app.command()
+def evaluate(
+    split: Annotated[str, typer.Option("--split")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    limit: Annotated[int | None, typer.Option("--limit")] = None,
+    overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+    i_know: Annotated[bool, typer.Option("--i-know", help="test split gate")] = False,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """GT metrics + oracle/first/random/worst comparison; E0 decision on gonogo (Faz 2)."""
+    if split == "test" and not i_know:
+        console.print("[red]The test split is gated until Faz 5 (SPEC.md §13).[/red]")
+        raise typer.Exit(code=2)
+    cfg = load_config(config)
+    summary = run_evaluate(
+        cfg, split, experiment=experiment, limit=limit, overwrite=overwrite, verbose=True
+    )
+    table = Table(title=f"evaluate — {experiment}/{split}")
+    table.add_column("key")
+    table.add_column("value")
+    for key, value in summary.items():
+        if key == "figures":
+            continue
+        table.add_row(str(key), str(value))
+    console.print(table)
+    if "figures" in summary:
+        for path in summary["figures"]:
+            console.print(f"figure: [bold]{path}[/bold]")
+
+
+@app.command()
+def viz(
+    split: Annotated[str, typer.Option("--split")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    n: Annotated[int, typer.Option("--n", help="number of samples in the QA panel")] = 20,
+    seed: Annotated[int, typer.Option("--seed")] = 0,
+    out: Annotated[Path | None, typer.Option("--out", help="output PNG path")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """QA panel: [original | damaged | damage_mask | gen_mask | object_mask] strips."""
+    cfg = load_config(config)
+    runs_dir = Path(cfg.project.paths.runs_dir)
+    sample_ids = cio.iter_sample_ids(runs_dir, experiment, split)
+    if not sample_ids:
+        raise typer.BadParameter(f"no prepared samples under {runs_dir / experiment / split}")
+
+    rng = np.random.default_rng(seed)
+    take = min(n, len(sample_ids))
+    picked = sorted(rng.choice(len(sample_ids), size=take, replace=False).tolist())
+
+    strips, titles = [], []
+    for index in picked:
+        sample_id = sample_ids[index]
+        sample = cio.load_sample(runs_dir, experiment, split, sample_id)
+        if sample.gt_hidden:
+            raise RuntimeError("unexpected: QA panels need the original (gt_hidden=True)")
+        strips.append(
+            side_by_side(
+                [
+                    cio.read_image(sample.original_path),
+                    cio.read_image(sample.damaged_path),
+                    mask_rgb(cio.read_mask(sample.damage_mask_path)),
+                    mask_rgb(cio.read_mask(sample.gen_mask_path)),
+                    mask_rgb(cio.read_mask(sample.object_mask_path)),
+                ]
+            )
+        )
+        titles.append(f"{sample_id} [{sample.meta.get('product_type', '?')}]")
+
+    out_path = out or (runs_dir / experiment / "results" / f"qa_{split}.png")
+    contact_sheet(strips, titles, out_path, cols=2)
+    console.print(f"panel: [bold]{out_path}[/bold]  ({take} samples)")
 
 
 if __name__ == "__main__":
