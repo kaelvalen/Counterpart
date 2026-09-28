@@ -498,6 +498,24 @@ def fit_weights(
 
 
 @app.command()
+def web(
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+    share: Annotated[bool, typer.Option("--share", help="public Gradio link")] = False,
+    port: Annotated[int, typer.Option("--port")] = 7860,
+) -> None:
+    """Optional Gradio demo (install with `uv sync --extra demo`)."""
+    try:
+        from counterpart.webapp import build_demo
+    except ImportError as exc:  # pragma: no cover - depends on optional extra
+        console.print(f"[red]gradio is not available: {exc}[/red]")
+        console.print("install the demo extra first: [bold]uv sync --extra demo[/bold]")
+        raise typer.Exit(code=2) from exc
+    build_demo(str(config)).launch(share=share, server_port=port)
+
+
+@app.command()
 def viz(
     split: Annotated[str, typer.Option("--split")] = "gonogo",
     experiment: Annotated[str, typer.Option("--experiment")] = "main",
