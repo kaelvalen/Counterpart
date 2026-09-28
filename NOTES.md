@@ -51,3 +51,37 @@ N=16'ya düşülürse ~12 h. Ayrıca E7 (SDXL, 50 görüntü) değişken; N ve g
 sayısı küçültülerek planlanır.
 
 **Açık sorular:** —
+
+## Faz 2 — Üretim (devam ediyor)
+
+- `generate` resumable; gonogo üretimi arka planda sürüyor (~150 sn/örnek, 100 örnek ≈ 4 sa).
+- check_env ölçümü: 3.38 s/aday (25 adım); gonogo için 100 × 32 × 3.38 ≈ 3 sa GPU.
+- E0 değerlendirmesi üretim bitince koşacak (oracle/random/first/worst + karar kuralı).
+
+## Faz 3 — Skor terimleri (T1–T6) ✅ (2026-09-28)
+
+Tüm terimler SPEC.md §5.4 tanımlarıyla, sentetik akıl sağlığı testleriyle:
+
+| Terim | Ölçülen skor (aday başına, ort.) | Notlar |
+|---|---|---|
+| T1 sınır sürekliliği | 15 ms | ΔE dikiş + gradyan + "sarkan kenar" (∂M'ye **dik** gelen kenarlar; ∂M'ye paralel hasar-dolgu kenarı filtrelenir) |
+| T6 kontur sürekliliği | 42 ms | Silüetin ∂M'ye giriş/çıkış noktalarında teğet + eğrilik; hasar silüeti kesmiyorsa `applicable=False` |
+| T4 doku istatistiği | 34 ms | LBP(8,1)+(16,2) χ², Gabor 4×6 enerji χ², Lab a*b* Bhattacharyya; V'nin SLIC bölgelerine **min** mesafe; OpenCV Gabor (skimage ~50× yavaştı) |
+| T5 frekans profili | 3.5 ms | Hann-FFT radyal spektrum; log-log eğim + yüksek frekans oranı; ince hasarda `applicable=False` |
+| T2 ayna simetrisi | 0.1–1 ms* | Eksen araması **tam silüet** üzerinden (hasarlı V değil); renk yalnızca V'de; güven eşiği altında abstain |
+| T3 dönme simetrisi | 0.1–1 ms* | Sürekli polar yeniden örnekleme (bin karışması yok); k∈[2,24] katlanmış tutarlılık; Hough merkezi doğrulanır; temel k = en büyük uyumlu k |
+
+*T2/T3 skor süreleri ölçülen örneklerde ~0 çıktı çünkü o örnekler asimetrik
+sandalyeler ve terimler haklı olarak abstain ediyor (`applicable=False`);
+prepare süreleri sırasıyla ~0.1 s ve ~0.8 s.
+
+**Kalibrasyon notları:**
+- T3'te kritik bug: katlanmış referans toplamı görünmeyen (hasarlı) hücrelerin
+  renklerini de topluyordu → ortalama kirleniyordu; düzeltildi.
+- T6'da kontakt tanımı yanlıştı (∂M'ye komşu tüm kontur pikselleri); giriş/çıkış
+  noktalarına çevrildi.
+- T2'de eksen araması hasarlı bölge V üzerindeyse yanlış eksene kayıyor; tam
+  silüet kullanılarak düzeltildi.
+
+**Açık sorular:** T2/T3'ün gerçek veri setinde ne sıklıkta applicable olacağı E1/E2'de
+raporlanacak (E5 kırılımı: simetrik/asimetrik nesneler).

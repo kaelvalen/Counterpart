@@ -162,6 +162,78 @@ class EvalCfg(Section):
     pairwise_bootstrap: int = 1000
 
 
+# ------------------------------------------------------------------------------ score
+
+
+class ScoreCfg(Section):
+    """Classical consistency score terms (SPEC.md §5.4). All thresholds live here."""
+
+    ring_width_px: int = 8
+    delta_e: str = "76"  # "76" | "2000"
+
+    # T1 — boundary continuity
+    t1_sample_step_px: int = 4
+    t1_seam_depth_px: int = 4
+    t1_seam_scale: float = 20.0  # ΔE that counts as fully inconsistent
+    t1_gradient_scale: float = 40.0  # grey-level gradient magnitude difference
+    t1_seam_weight: float = 1 / 3
+    t1_gradient_weight: float = 1 / 3
+    t1_dangling_weight: float = 1 / 3
+    t1_canny_low: int = 50
+    t1_canny_high: int = 150
+    t1_contact_radius_px: int = 2
+    t1_contact_max_alignment: float = 0.77  # |g·n| below this = edge arrives ⊥ to ∂M
+    t1_min_contacts: int = 3
+
+    # T2 — mirror symmetry
+    t2_angle_step_deg: float = 2.0
+    t2_confidence_threshold: float = 0.6
+    t2_min_overlap_px: int = 400
+    t2_color_scale: float = 15.0
+    t2_offset_steps: int = 3
+    t2_offset_frac: float = 0.02
+    t2_refine_iters: int = 2
+
+    # T3 — rotational symmetry
+    t3_k_min: int = 2
+    t3_k_max: int = 24
+    t3_confidence_threshold: float = 0.6
+    t3_radial_bins: int = 24
+    t3_angular_bins: int = 360
+    t3_color_scale: float = 15.0
+    t3_continuous_tol: float = 0.05
+    t3_hough_min_radius_frac: float = 0.15
+    t3_hough_max_radius_frac: float = 0.75
+
+    # T4 — texture statistics
+    t4_patch_px: int = 32
+    t4_min_mask_pixels: int = 400
+    t4_min_patches: int = 6
+    t4_lbp_weight: float = 1 / 3
+    t4_gabor_weight: float = 1 / 3
+    t4_color_weight: float = 1 / 3
+    t4_lbp_scale: float = 0.2
+    t4_gabor_scale: float = 0.5
+    t4_color_scale: float = 0.2
+    t4_superpixel_regions: int = 24
+
+    # T5 — frequency profile
+    t5_patch_px: int = 32
+    t5_min_patches: int = 6
+    t5_high_freq_cutoff: float = 0.35
+    t5_slope_scale: float = 0.5
+    t5_hf_scale: float = 0.2
+
+    # T6 — contour continuity
+    t6_fit_radius_px: int = 14
+    t6_contact_px: float = 2.0
+    t6_contact_min_separation_px: int = 6
+    t6_tangent_weight: float = 1.0
+    t6_curvature_lambda: float = 0.5
+    t6_curvature_scale: float = 1.0
+    t6_min_segment_px: int = 8
+
+
 # ------------------------------------------------------------------------------ root
 
 
@@ -172,6 +244,7 @@ class Cfg(Section):
     data: DataCfg = Field(default_factory=DataCfg)
     segment: SegmentCfg = Field(default_factory=SegmentCfg)
     eval: EvalCfg = Field(default_factory=EvalCfg)
+    score: ScoreCfg = Field(default_factory=ScoreCfg)
 
 
 # -------------------------------------------------------------------------- loading

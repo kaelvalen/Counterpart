@@ -84,3 +84,50 @@ segment:
   max_area_frac: 0.90
   crop_margin: 0.15
   size: 512
+
+eval:
+  lpips_net: alex
+  lpips_crop_margin: 16
+  lpips_min_crop: 128
+  boundary_ring_px: 8
+  delta_e: "76"
+  pairwise_bootstrap: 1000
+
+score:
+  ring_width_px: 8
+  delta_e: "76"
+  t1_sample_step_px: 4
+  t1_seam_depth_px: 4
+  t1_seam_scale: 20.0
+  t1_gradient_scale: 40.0
+  t1_seam_weight: 0.3333333333
+  t1_gradient_weight: 0.3333333333
+  t1_dangling_weight: 0.3333333333
+  t1_canny_low: 50
+  t1_canny_high: 150
+  t1_contact_radius_px: 2
+  t1_min_contacts: 3
+  t2_angle_step_deg: 2.0
+  t2_confidence_threshold: 0.6
+  t2_min_overlap_px: 400
+  t3_k_min: 2
+  t3_k_max: 24
+  t3_confidence_threshold: 0.6
+  t3_radial_bins: 24
+  t3_angular_bins: 180
+  t4_patch_px: 32
+  t4_min_mask_pixels: 400
+  t4_lbp_weight: 0.3333333333
+  t4_gabor_weight: 0.3333333333
+  t4_color_weight: 0.3333333333
+  t4_superpixel_regions: 24
+  t5_patch_px: 32
+  t5_min_patches: 6
+  t5_high_freq_cutoff: 0.35
+  t6_fit_radius_px: 14
+  t6_contact_px: 2.0
+  t6_contact_min_separation_px: 6
+  t6_tangent_weight: 1.0
+  t6_curvature_lambda: 0.5
+  t6_curvature_scale: 1.0
+  t6_min_segment_px: 8

@@ -19,6 +19,7 @@ from counterpart.eval.evaluate import run_evaluate
 from counterpart.generate.candidates import run_generate
 from counterpart.generate.sd_inpaint import InpaintGenerator, dilate_mask
 from counterpart.generate.variants import plan_candidates
+from counterpart.score.run import run_score
 from counterpart.types import Candidate
 from counterpart.viz.panels import contact_sheet, mask_rgb, side_by_side
 
@@ -272,6 +273,45 @@ def evaluate(
     if "figures" in summary:
         for path in summary["figures"]:
             console.print(f"figure: [bold]{path}[/bold]")
+
+
+@app.command()
+def score(
+    split: Annotated[str, typer.Option("--split")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    terms: Annotated[
+        str | None, typer.Option("--terms", help="comma-separated subset, e.g. T1,T6")
+    ] = None,
+    limit: Annotated[int | None, typer.Option("--limit")] = None,
+    workers: Annotated[int, typer.Option("--workers")] = 8,
+    overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+    i_know: Annotated[bool, typer.Option("--i-know", help="test split gate")] = False,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """Score candidates with the classical consistency terms (Faz 3). Cache-only."""
+    if split == "test" and not i_know:
+        console.print("[red]The test split is gated until Faz 5 (SPEC.md §13).[/red]")
+        raise typer.Exit(code=2)
+    cfg = load_config(config)
+    term_list = [t.strip() for t in terms.split(",")] if terms else None
+    summary = run_score(
+        cfg,
+        split,
+        experiment=experiment,
+        terms=term_list,
+        limit=limit,
+        workers=workers,
+        overwrite=overwrite,
+        verbose=True,
+    )
+    table = Table(title=f"score — {experiment}/{split}")
+    table.add_column("key")
+    table.add_column("value")
+    for key, value in summary.items():
+        table.add_row(str(key), str(value))
+    console.print(table)
 
 
 @app.command()
