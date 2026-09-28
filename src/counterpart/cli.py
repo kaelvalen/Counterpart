@@ -13,6 +13,9 @@ from rich.console import Console
 from rich.table import Table
 
 from counterpart import io as cio
+from counterpart.baselines.classical_inpaint import run_baselines
+from counterpart.baselines.clip_select import run_clip_scores
+from counterpart.baselines.dino_select import run_dino_scores
 from counterpart.config import load_config
 from counterpart.data.prepare import run_prepare
 from counterpart.eval.evaluate import run_evaluate
@@ -20,8 +23,11 @@ from counterpart.generate.candidates import run_generate
 from counterpart.generate.sd_inpaint import InpaintGenerator, dilate_mask
 from counterpart.generate.variants import plan_candidates
 from counterpart.score.run import run_score
+from counterpart.select.modes import run_modes
+from counterpart.select.select import run_select
+from counterpart.select.uncertainty import run_uncertainty, uncertainty_heatmap
 from counterpart.types import Candidate
-from counterpart.viz.panels import contact_sheet, mask_rgb, side_by_side
+from counterpart.viz.panels import contact_sheet, mask_rgb, sample_panel, side_by_side
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 console = Console()
@@ -315,17 +321,113 @@ def score(
 
 
 @app.command()
-def viz(
+def baselines(
     split: Annotated[str, typer.Option("--split")] = "gonogo",
     experiment: Annotated[str, typer.Option("--experiment")] = "main",
-    n: Annotated[int, typer.Option("--n", help="number of samples in the QA panel")] = 20,
-    seed: Annotated[int, typer.Option("--seed")] = 0,
-    out: Annotated[Path | None, typer.Option("--out", help="output PNG path")] = None,
+    limit: Annotated[int | None, typer.Option("--limit")] = None,
+    methods: Annotated[
+        str | None, typer.Option("--methods", help="comma-separated: telea,ns,patchmatch")
+    ] = "telea,ns",
+    clip: Annotated[bool, typer.Option("--clip/--no-clip")] = True,
+    dino: Annotated[bool, typer.Option("--dino/--no-dino")] = True,
+    workers: Annotated[int, typer.Option("--workers")] = 8,
+    overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+    i_know: Annotated[bool, typer.Option("--i-know", help="test split gate")] = False,
     config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
         "configs/default.yaml"
     ),
 ) -> None:
-    """QA panel: [original | damaged | damage_mask | gen_mask | object_mask] strips."""
+    """Classical inpainting + CLIP/DINO selectors (Faz 4)."""
+    if split == "test" and not i_know:
+        console.print("[red]The test split is gated until Faz 5 (SPEC.md §13).[/red]")
+        raise typer.Exit(code=2)
+    cfg = load_config(config)
+    summaries: dict[str, dict] = {}
+    if methods:
+        cfg.baselines.classical_methods = [m.strip() for m in methods.split(",") if m.strip()]
+        summaries["classical"] = run_baselines(
+            cfg,
+            split,
+            experiment=experiment,
+            limit=limit,
+            workers=workers,
+            overwrite=overwrite,
+            verbose=True,
+        )
+    if clip:
+        summaries["clip"] = run_clip_scores(
+            cfg, split, experiment=experiment, limit=limit, overwrite=overwrite, verbose=True
+        )
+    if dino:
+        summaries["dino"] = run_dino_scores(
+            cfg, split, experiment=experiment, limit=limit, overwrite=overwrite, verbose=True
+        )
+    for name, summary in summaries.items():
+        table = Table(title=f"baselines/{name} — {experiment}/{split}")
+        table.add_column("key")
+        table.add_column("value")
+        for key, value in summary.items():
+            table.add_row(str(key), str(value))
+        console.print(table)
+
+
+@app.command()
+def select(
+    split: Annotated[str, typer.Option("--split")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    limit: Annotated[int | None, typer.Option("--limit")] = None,
+    skip_modes: Annotated[bool, typer.Option("--skip-modes")] = False,
+    skip_uncertainty: Annotated[bool, typer.Option("--skip-uncertainty")] = False,
+    overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+    i_know: Annotated[bool, typer.Option("--i-know", help="test split gate")] = False,
+    config: Annotated[Path, typer.Option("--config", exist_ok=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """Selection + modes + uncertainty (Faz 4)."""
+    if split == "test" and not i_know:
+        console.print("[red]The test split is gated until Faz 5 (SPEC.md §13).[/red]")
+        raise typer.Exit(code=2)
+    cfg = load_config(config)
+    summaries: dict[str, dict] = {}
+    summaries["select"] = run_select(
+        cfg, split, experiment=experiment, limit=limit, overwrite=overwrite, verbose=True
+    )
+    if not skip_uncertainty:
+        summaries["uncertainty"] = run_uncertainty(
+            cfg, split, experiment=experiment, limit=limit, overwrite=overwrite, verbose=True
+        )
+    if not skip_modes:
+        summaries["modes"] = run_modes(
+            cfg, split, experiment=experiment, limit=limit, overwrite=overwrite, verbose=True
+        )
+    for name, summary in summaries.items():
+        table = Table(title=f"{name} — {experiment}/{split}")
+        table.add_column("key")
+        table.add_column("value")
+        for key, value in summary.items():
+            table.add_row(str(key), str(value))
+        console.print(table)
+
+
+@app.command()
+def viz(
+    split: Annotated[str, typer.Option("--split")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    n: Annotated[int, typer.Option("--n", help="number of samples")] = 20,
+    seed: Annotated[int, typer.Option("--seed")] = 0,
+    kind: Annotated[
+        str, typer.Option("--kind", help="qa (data QA strips) | panel (full result panels)")
+    ] = "qa",
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="output PNG (qa) or directory (panel)"),
+    ] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """Visualisation: data QA strips or full per-sample result panels (SPEC.md §5.5)."""
     cfg = load_config(config)
     runs_dir = Path(cfg.project.paths.runs_dir)
     sample_ids = cio.iter_sample_ids(runs_dir, experiment, split)
@@ -336,12 +438,43 @@ def viz(
     take = min(n, len(sample_ids))
     picked = sorted(rng.choice(len(sample_ids), size=take, replace=False).tolist())
 
+    if kind == "panel":
+        out_dir = out or (runs_dir / experiment / "results" / f"panels_{split}")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        written = 0
+        for index in picked:
+            sample_id = sample_ids[index]
+            sample = cio.load_sample(runs_dir, experiment, split, sample_id)
+            if not sample.selection_path.exists() or not sample.uncertainty_path.exists():
+                continue
+            selection = cio.load_json(sample.selection_path)
+            modes = (
+                cio.load_json(sample.modes_path) if sample.modes_path.exists() else {"modes": []}
+            )
+            uncertainty = np.load(sample.uncertainty_path)
+            damage_mask = cio.read_mask(sample.damage_mask_path)
+            best = cio.read_image(sample.candidate_path(int(selection["ours_eq"])))
+            representatives = [
+                cio.read_image(sample.candidate_path(int(mode["representative_idx"])))
+                for mode in modes["modes"][: cfg.select.panel_modes]
+            ]
+            sample_panel(
+                out_dir / f"{sample_id}.png",
+                damaged=cio.read_image(sample.damaged_path),
+                damage_mask=damage_mask,
+                best=best,
+                mode_representatives=representatives,
+                uncertainty_rgb=uncertainty_heatmap(uncertainty, damage_mask),
+                gt=cio.read_image(sample.original_path),
+            )
+            written += 1
+        console.print(f"panels: [bold]{out_dir}[/bold]  ({written} samples)")
+        return
+
     strips, titles = [], []
     for index in picked:
         sample_id = sample_ids[index]
         sample = cio.load_sample(runs_dir, experiment, split, sample_id)
-        if sample.gt_hidden:
-            raise RuntimeError("unexpected: QA panels need the original (gt_hidden=True)")
         strips.append(
             side_by_side(
                 [

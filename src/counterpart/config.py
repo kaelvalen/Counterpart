@@ -234,6 +234,36 @@ class ScoreCfg(Section):
     t6_min_segment_px: int = 8
 
 
+# -------------------------------------------------------------------------- baselines
+
+
+class BaselinesCfg(Section):
+    """Baseline inpainting and learned selectors (SPEC.md §7)."""
+
+    classical_methods: list[str] = Field(default_factory=lambda: ["telea", "ns"])
+    clip_model: str = "ViT-B-32"
+    clip_pretrained: str = "laion2b_s34b_b79k"
+    clip_prompt: str = "a photo of an intact {category}"
+    dino_model: str = "facebook/dinov2-base"
+    dino_cls_weight: float = 0.5
+    dino_nn_weight: float = 0.5
+    neutral_gray: int = 128
+
+
+# ---------------------------------------------------------------------------- select
+
+
+class SelectCfg(Section):
+    """Selection, mode discovery and uncertainty (SPEC.md §5.5)."""
+
+    mode_distance_threshold: float = 0.35
+    mode_embedding: str = "facebook/dinov2-base"
+    mode_crop_margin: int = 32
+    uncertainty_top_k_variant: int = 8
+    random_seed: int = 0
+    panel_modes: int = 3
+
+
 # ------------------------------------------------------------------------------ root
 
 
@@ -245,6 +275,8 @@ class Cfg(Section):
     segment: SegmentCfg = Field(default_factory=SegmentCfg)
     eval: EvalCfg = Field(default_factory=EvalCfg)
     score: ScoreCfg = Field(default_factory=ScoreCfg)
+    baselines: BaselinesCfg = Field(default_factory=BaselinesCfg)
+    select: SelectCfg = Field(default_factory=SelectCfg)
 
 
 # -------------------------------------------------------------------------- loading

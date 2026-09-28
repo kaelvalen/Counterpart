@@ -59,3 +59,30 @@ def side_by_side(images: list[np.ndarray], separator: int = 4) -> np.ndarray:
 def mask_rgb(mask: np.ndarray) -> np.ndarray:
     """Render a bool mask as a white-on-black RGB image (for panels)."""
     return np.repeat((mask.astype(np.uint8) * 255)[..., None], 3, axis=2)
+
+
+def sample_panel(
+    out_path: Path,
+    damaged: np.ndarray,
+    damage_mask: np.ndarray,
+    best: np.ndarray,
+    mode_representatives: list[np.ndarray],
+    uncertainty_rgb: np.ndarray,
+    gt: np.ndarray | None = None,
+) -> Path:
+    """Full per-sample panel (SPEC.md §5.5):
+
+    [damaged | mask | best | mode reps | uncertainty | (GT)]
+    """
+    images = [damaged, mask_rgb(damage_mask), best, *mode_representatives, uncertainty_rgb]
+    titles = [
+        "damaged",
+        "damage mask",
+        "best",
+        *(f"mode {i}" for i in range(len(mode_representatives))),
+        "uncertainty",
+    ]
+    if gt is not None:
+        images.append(gt)
+        titles.append("GT")
+    return contact_sheet(images, titles, out_path, cols=len(images), dpi=140)

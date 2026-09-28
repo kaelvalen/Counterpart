@@ -43,7 +43,6 @@ def test_combine_renormalises_weights_for_inapplicable_terms() -> None:
     combined, z = combine_terms(raw, applicable, weights=None)
     assert np.isfinite(combined).all(), "NaN term must not poison the combination"
     assert np.allclose(z["T2"], 0.0)
-    # T1 and T6 rank in opposite directions → their sum is ~0 everywhere
     assert np.allclose(combined, 0.0, atol=1e-9)
 
 
@@ -89,7 +88,7 @@ def _write_candidate_sample(root: Path) -> dict[str, np.ndarray]:
 
     candidates = {"gt": intact, "white": damaged, "noise": noise}
     records = []
-    for idx, (name, image) in enumerate(candidates.items()):
+    for idx, image in enumerate(candidates.values()):
         cio.write_image(root / "candidates" / f"cand_{idx:03d}.png", image)
         records.append(
             {

@@ -18,8 +18,6 @@ from rich.table import Table
 
 from counterpart import io as cio
 from counterpart.config import load_config
-from counterpart.score.base import TERMS, build_score_sample
-from counterpart.score.combine import DEFAULT_TERMS
 
 # register terms
 from counterpart.score import (  # noqa: F401
@@ -30,6 +28,8 @@ from counterpart.score import (  # noqa: F401
     symmetry,
     texture,
 )
+from counterpart.score.base import TERMS, build_score_sample
+from counterpart.score.combine import DEFAULT_TERMS
 
 
 def main() -> None:
