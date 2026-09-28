@@ -242,7 +242,6 @@ def _summarize(per_image: pd.DataFrame, split: str, n_boot: int = 1000) -> dict[
     summary["mean_oracle_iou"] = round(float(per_image["oracle_iou"].mean()), 4)
 
     # --- selection-quality aggregates (E1): per selector LPIPS/regret/percentile/win-rate
-    random_values = per_image["lpips_random"].to_numpy()
     for name in SELECTOR_NAMES:
         column = f"lpips_sel_{name}"
         if column not in per_image.columns or not per_image[column].notna().any():

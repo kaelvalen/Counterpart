@@ -83,5 +83,40 @@ prepare süreleri sırasıyla ~0.1 s ve ~0.8 s.
 - T2'de eksen araması hasarlı bölge V üzerindeyse yanlış eksene kayıyor; tam
   silüet kullanılarak düzeltildi.
 
-**Açık sorular:** T2/T3'ün gerçek veri setinde ne sıklıkta applicable olacağı E1/E2'de
-raporlanacak (E5 kırılımı: simetrik/asimetrik nesneler).
+## Faz 5 hazırlığı — ön sonuçlar (gonogo alt kümesi, ~25 örnek) ✅ (2026-09-28)
+
+Tam gonogo üretimi sürerken (24/100 örnek) tüm hat uçtan uca çalıştırıldı:
+
+**E0 (kısmi, 25 görüntü):** oracle 0.081 / random 0.109 / worst 0.160 → oracle_rel 0.75,
+gap 0.027 > spread/2 0.008 → **karar: continue** (tam 100 örnekle tekrarlanacak).
+
+**H1 ön izlemesi (25 görüntü, ortalama LPIPS):**
+
+| Seçici | mean LPIPS | persentil | win-rate vs random |
+|---|---|---|---|
+| ours_eq (mod A) | **0.101** | **0.29** | **%86** |
+| dino | 0.108 | 0.50 | %50 |
+| first | 0.107 | 0.42 | %64 |
+| clip | 0.113 | 0.49 | %59 |
+| random (beklenen) | 0.109 | 0.50 | — |
+| oracle | 0.081 | 0 | — |
+
+Yani klasik birleşim, CLIP/DINO öğrenilmiş seçicilerini ve random'ı geçiyor — H1 yönünde.
+
+**H2 ön izlemesi:** piksel Spearman(U, |best−GT|) = 0.43; AUROC(en kötü %10) = 0.83;
+görüntü düzeyi Spearman(mean U, LPIPS(best)) = 0.54 → belirsizlik haritası kalibre görünüyor.
+
+**H3 ön izlemesi:** Telea 0.376 / NS 0.373 vs generative random 0.109 / oracle 0.081 →
+klasik inpainting'e karşı büyük fark.
+
+**E3 (N ölçekleme):** N=1 → 0.111, N=8 → 0.107, N=32 → 0.098 (oracle 0.084) — seçim
+N ile iyileşiyor.
+
+**E2 ablation (kısmi):** full_combined_A 0.101; en iyi tek terim T4 0.103; LOO etkisi
+T2/T3/T4'te görünür (tam tablo `runs/main/results/e2_ablation_gonogo.csv`).
+
+**Karar:** tüm hat hazır; tam koşular için `scripts/run_all.sh` (train/val/test →
+score/baselines/select/evaluate/experiments; ~20 saat GPU, resumable).
+
+**Açık sorular:** modlar şu an çoğunlukla 1 küme (mean 1.36) — eşik val'de kalibre
+edilecek; T3'ün gerçek veride ne sıklıkta applicable olduğu E2/E5'te raporlanacak.

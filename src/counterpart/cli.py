@@ -19,6 +19,8 @@ from counterpart.baselines.dino_select import run_dino_scores
 from counterpart.config import load_config
 from counterpart.data.prepare import run_prepare
 from counterpart.eval.evaluate import run_evaluate
+from counterpart.eval.experiments import run_experiments
+from counterpart.eval.fit_weights import fit_mode_b
 from counterpart.eval.gt_injection import run_gt_injection
 from counterpart.generate.candidates import run_generate
 from counterpart.generate.sd_inpaint import InpaintGenerator, dilate_mask
@@ -424,6 +426,70 @@ def e6(
     cfg = load_config(config)
     summary = run_gt_injection(cfg, split, experiment=experiment, limit=limit)
     table = Table(title=f"E6 gt-injection — {experiment}/{split}")
+    table.add_column("key")
+    table.add_column("value")
+    for key, value in summary.items():
+        table.add_row(str(key), str(value))
+    console.print(table)
+
+
+@app.command()
+def experiments(
+    split: Annotated[str, typer.Option("--split")] = "gonogo",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    which: Annotated[str, typer.Option("--which", help="E2,E3,E4,E5")] = "E2,E3,E4,E5",
+    i_know: Annotated[bool, typer.Option("--i-know", help="test split gate")] = False,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """Cache-only analyses: E2 ablation, E3 N-scaling, E4 calibration, E5 breakdowns."""
+    if split == "test" and not i_know:
+        console.print("[red]The test split is gated until Faz 5 (SPEC.md §13).[/red]")
+        raise typer.Exit(code=2)
+    cfg = load_config(config)
+    summary = run_experiments(
+        cfg, split, experiment=experiment, which=tuple(w.strip() for w in which.split(","))
+    )
+    for key, value in summary.items():
+        if key in ("split", "experiment"):
+            continue
+        if isinstance(value, list) and value and isinstance(value[0], dict):
+            columns = list(value[0])
+            table = Table(title=key)
+            for column in columns:
+                table.add_column(str(column))
+            for record in value:
+                table.add_row(*(str(record.get(column)) for column in columns))
+            console.print(table)
+        elif isinstance(value, dict):
+            table = Table(title=key)
+            table.add_column("key")
+            table.add_column("value")
+            for k, v in value.items():
+                table.add_row(str(k), str(v))
+            console.print(table)
+        else:
+            console.print(f"{key}: {value}")
+    console.print(
+        f"tables: [bold]{Path(cfg.project.paths.runs_dir) / experiment / 'results'}[/bold]"
+    )
+
+
+@app.command("fit-weights")
+def fit_weights(
+    split: Annotated[str, typer.Option("--split", help="train split to fit on")] = "train",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    l2: Annotated[float, typer.Option("--l2")] = 1.0,
+    iters: Annotated[int, typer.Option("--iters")] = 400,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """Fit mode-B term weights on a train split (pairwise logistic, GT LPIPS)."""
+    cfg = load_config(config)
+    summary = fit_mode_b(cfg, experiment=experiment, train_split=split, l2=l2, iters=iters)
+    table = Table(title=f"fit-weights — {experiment}/{split}")
     table.add_column("key")
     table.add_column("value")
     for key, value in summary.items():

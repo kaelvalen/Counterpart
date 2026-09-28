@@ -73,6 +73,7 @@ def pairwise_logistic_fit(
     features: np.ndarray,
     lpips: np.ndarray,
     *,
+    groups: np.ndarray | None = None,
     l2: float = 1.0,
     iters: int = 400,
     lr: float = 0.2,
@@ -80,24 +81,32 @@ def pairwise_logistic_fit(
 ) -> np.ndarray:
     """RankNet-lite: pairwise logistic regression on (better, worse) candidate pairs.
 
-    ``features`` is (N, T) z-normalised term values (per image), ``lpips`` (N,) with
-    lower = better. Returns non-negative weights (T,).
+    ``features`` is (N, T) z-normalised term values, ``lpips`` (N,) with lower = better.
+    ``groups`` assigns each row to an image; pairs are only formed within a group.
+    Returns non-negative weights (T,).
     """
     features = np.asarray(features, dtype=np.float64)
     lpips = np.asarray(lpips, dtype=np.float64)
     n, t = features.shape
+    if groups is None:
+        groups = np.zeros(n, dtype=int)
+    groups = np.asarray(groups)
 
-    better, worse = [], []
-    for i in range(n):
-        for j in range(i + 1, n):
-            if lpips[i] < lpips[j]:
-                better.append(i)
-                worse.append(j)
-            elif lpips[j] < lpips[i]:
-                better.append(j)
-                worse.append(i)
-    if not better:
+    better_idx: list[np.ndarray] = []
+    worse_idx: list[np.ndarray] = []
+    for group in np.unique(groups):
+        members = np.nonzero(groups == group)[0]
+        if len(members) < 2:
+            continue
+        i, j = np.triu_indices(len(members), k=1)
+        first, second = members[i], members[j]
+        swap = lpips[second] < lpips[first]
+        better_idx.append(np.where(swap, second, first))
+        worse_idx.append(np.where(swap, first, second))
+    if not better_idx:
         return np.ones(t) / t
+    better = np.concatenate(better_idx)
+    worse = np.concatenate(worse_idx)
 
     x = features[better] - features[worse]  # (P, T); positive margin = first should win
     weights = np.ones(t) / t

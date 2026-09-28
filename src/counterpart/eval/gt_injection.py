@@ -17,8 +17,6 @@ import pandas as pd
 
 from counterpart import io as cio
 from counterpart.config import Cfg
-from counterpart.score.base import TERMS, build_score_sample
-from counterpart.score.combine import DEFAULT_TERMS, combine_terms
 
 # importing term modules registers them
 from counterpart.score import (  # noqa: F401
@@ -29,6 +27,8 @@ from counterpart.score import (  # noqa: F401
     symmetry,
     texture,
 )
+from counterpart.score.base import TERMS, build_score_sample
+from counterpart.score.combine import DEFAULT_TERMS, combine_terms
 
 
 def _descending_percentile(values: np.ndarray, index: int) -> float:
