@@ -1,0 +1,7 @@
+# 8 GB VRAM profile (RTX 5060 Laptop, cc 12.0) — SPEC.md §3.4.
+# Merge on top of a base config:  load_config(base, profile=this)
+generator:
+  dtype: float16
+  resolution: 512
+  batch_size: 1
+  attention_slicing: true

@@ -1,0 +1,42 @@
+# counterpart — default configuration.
+# All magic numbers live here (SPEC.md §13); code must not hardcode thresholds.
+
+project:
+  name: counterpart
+  seed: 0
+  paths:
+    data_dir: data
+    runs_dir: runs
+
+generator:
+  # SD1.5 inpainting (fully open on HF). SD2-inpainting is gated (401) as of 2026-09;
+  # set optional_id if access opens up.
+  id: stable-diffusion-v1-5/stable-diffusion-inpainting
+  optional_id: null
+  dtype: float16
+  resolution: 512
+  n_candidates: 32
+  num_inference_steps: 25
+  guidance_scales: [4.0, 7.5]
+  prompts:
+    - ""
+    - "a complete intact object, product photo, white background"
+    - "a complete intact {category}, product photo"
+  negative_prompt: "broken, cracked, chipped, damaged, missing piece, hole, shattered"
+  batch_size: 1
+  attention_slicing: true
+  seam_feather_px: 3
+  seed: 0
+
+damage:
+  type_probs:
+    chip: 0.70
+    hole: 0.15
+    crack: 0.15
+  area_frac_min: 0.10
+  area_frac_max: 0.30
+  gen_mask_dilate_px: 6
+  fractal_levels: 4
+  fractal_roughness: 0.35
+  crack_width_px: [3, 8]
+  fracture_rim: false
