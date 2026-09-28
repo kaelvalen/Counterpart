@@ -128,7 +128,12 @@ def run_modes(
         raise ValueError(f"no samples under {runs_dir / experiment / split}")
 
     mode_counts = []
+    skipped = 0
     for i, sample_id in enumerate(sample_ids, start=1):
+        sample = cio.load_sample(runs_dir, experiment, split, sample_id, gt_hidden=True)
+        if not sample.scores_path.exists():
+            skipped += 1
+            continue
         payload = compute_modes_sample(cfg, experiment, split, sample_id, overwrite=overwrite)
         mode_counts.append(payload["n_modes"])
         if verbose:
@@ -137,5 +142,6 @@ def run_modes(
         "split": split,
         "experiment": experiment,
         "samples": len(sample_ids),
+        "skipped": skipped,
         "mean_modes": round(float(np.mean(mode_counts)), 3) if mode_counts else 0.0,
     }

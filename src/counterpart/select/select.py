@@ -118,6 +118,10 @@ def run_select(
 
     counts: Counter[str] = Counter()
     for i, sample_id in enumerate(sample_ids, start=1):
+        sample = cio.load_sample(runs_dir, experiment, split, sample_id, gt_hidden=True)
+        if not sample.scores_path.exists():
+            counts["skipped"] += 1
+            continue
         picks = select_sample(cfg, experiment, split, sample_id, overwrite=overwrite)
         counts["ok"] += 1
         for name, value in picks.items():

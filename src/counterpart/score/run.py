@@ -89,6 +89,15 @@ def score_sample(
 def score_sample_worker(payload: dict[str, Any]) -> dict[str, Any]:
     """ProcessPoolExecutor entry point (must stay module-level)."""
     cfg = Cfg.model_validate(payload["cfg"])
+    runs_dir = Path(cfg.project.paths.runs_dir)
+    sample_root = runs_dir / payload["experiment"] / payload["split"] / payload["sample_id"]
+    manifest = sample_root / "candidates.jsonl"
+    if not manifest.exists():
+        return {
+            "sample_id": payload["sample_id"],
+            "status": "skipped",
+            "reason": "no candidates yet",
+        }
     try:
         frame = score_sample(
             cfg,

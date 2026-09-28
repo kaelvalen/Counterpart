@@ -105,6 +105,24 @@ def _write_candidate_sample(root: Path) -> dict[str, np.ndarray]:
     return candidates
 
 
+def test_gt_injection_ranks_ground_truth_near_top(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "runs"
+    sample_dir = runs_dir / "main" / "test" / "s0"
+    _write_candidate_sample(sample_dir)
+
+    cfg = Cfg()
+    cfg.project.paths.runs_dir = runs_dir  # type: ignore[assignment]
+    score_sample(cfg, "main", "test", "s0", terms=["T1", "T6"])
+
+    from counterpart.eval.gt_injection import run_gt_injection
+
+    summary = run_gt_injection(cfg, "test", experiment="main")
+    assert summary["n_images"] == 1
+    assert summary["mean_combined_percentile"] <= 0.5, (
+        "the ground truth must not rank at the bottom of its own candidate pool"
+    )
+
+
 def test_score_sample_ranks_ground_truth_first(tmp_path: Path, monkeypatch) -> None:
     runs_dir = tmp_path / "runs"
     sample_dir = runs_dir / "main" / "test" / "s0"

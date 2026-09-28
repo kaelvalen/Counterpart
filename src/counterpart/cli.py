@@ -19,6 +19,7 @@ from counterpart.baselines.dino_select import run_dino_scores
 from counterpart.config import load_config
 from counterpart.data.prepare import run_prepare
 from counterpart.eval.evaluate import run_evaluate
+from counterpart.eval.gt_injection import run_gt_injection
 from counterpart.generate.candidates import run_generate
 from counterpart.generate.sd_inpaint import InpaintGenerator, dilate_mask
 from counterpart.generate.variants import plan_candidates
@@ -116,7 +117,7 @@ def demo(
 
     sample_dir = out / image.stem
     candidates_dir = sample_dir / "candidates"
-    candidates_dir.mkdir(parents=True, exist_ok=True)
+    candidates_dir.mkdir(parents=True, exists=True)
 
     size = gen_cfg.resolution
     damaged, damage_mask, _crop = _fit_square(image_raw, mask_raw, size)
@@ -380,7 +381,7 @@ def select(
     skip_uncertainty: Annotated[bool, typer.Option("--skip-uncertainty")] = False,
     overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
     i_know: Annotated[bool, typer.Option("--i-know", help="test split gate")] = False,
-    config: Annotated[Path, typer.Option("--config", exist_ok=True, dir_okay=False)] = Path(
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
         "configs/default.yaml"
     ),
 ) -> None:
@@ -408,6 +409,26 @@ def select(
         for key, value in summary.items():
             table.add_row(str(key), str(value))
         console.print(table)
+
+
+@app.command()
+def e6(
+    split: Annotated[str, typer.Option("--split")] = "val",
+    experiment: Annotated[str, typer.Option("--experiment")] = "main",
+    limit: Annotated[int | None, typer.Option("--limit")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
+        "configs/default.yaml"
+    ),
+) -> None:
+    """E6 — GT injection diagnostic: where does the scorer rank the ground truth?"""
+    cfg = load_config(config)
+    summary = run_gt_injection(cfg, split, experiment=experiment, limit=limit)
+    table = Table(title=f"E6 gt-injection — {experiment}/{split}")
+    table.add_column("key")
+    table.add_column("value")
+    for key, value in summary.items():
+        table.add_row(str(key), str(value))
+    console.print(table)
 
 
 @app.command()
@@ -440,7 +461,7 @@ def viz(
 
     if kind == "panel":
         out_dir = out or (runs_dir / experiment / "results" / f"panels_{split}")
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir.mkdir(parents=True, exists=True)
         written = 0
         for index in picked:
             sample_id = sample_ids[index]
