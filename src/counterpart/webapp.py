@@ -47,6 +47,7 @@ def reconstruct(
     n: int = 8,
     prompt: str | None = None,
     category: str | None = None,
+    object_mask_override: np.ndarray | None = None,
 ) -> dict[str, np.ndarray | float]:
     """Run generate -> score -> select on one image+mask; returns panel-ready arrays."""
     from counterpart.segment.threshold import object_mask
@@ -58,9 +59,12 @@ def reconstruct(
     size = gen_cfg.resolution
     damaged, damage_mask = _fit_square(image, mask, size)
     gen_mask = dilate_mask(damage_mask, cfg.damage.gen_mask_dilate_px)
-    obj = object_mask(damaged, cfg.segment)
-    if not obj.any():
-        obj = ~damage_mask
+    if object_mask_override is not None:
+        _, obj = _fit_square(image, object_mask_override, size)
+    else:
+        obj = object_mask(damaged, cfg.segment)
+        if not obj.any():
+            obj = ~damage_mask
     obj = obj | damage_mask  # the object mask must cover the damage region
 
     tag = hashlib.sha256(damaged.tobytes()).hexdigest()[:12]
