@@ -67,7 +67,22 @@ def reconstruct(
             obj = ~damage_mask
     obj = obj | damage_mask  # the object mask must cover the damage region
 
-    tag = hashlib.sha256(damaged.tobytes()).hexdigest()[:12]
+    # cache identity: every generator-relevant input must invalidate stale candidates
+    import json
+
+    key = json.dumps(
+        {
+            "image": hashlib.sha256(damaged.tobytes()).hexdigest()[:16],
+            "mask": hashlib.sha256(damage_mask.tobytes()).hexdigest()[:16],
+            "prompt": prompt or "",
+            "negative": gen_cfg.negative_prompt,
+            "guidance": gen_cfg.guidance_scales,
+            "steps": gen_cfg.num_inference_steps,
+            "model": gen_cfg.id,
+        },
+        sort_keys=True,
+    )
+    tag = hashlib.sha256(key.encode()).hexdigest()[:12]
     runs_dir = Path(cfg.project.paths.runs_dir)
     root = runs_dir / "webapp" / "demo" / tag
     candidates_dir = root / "candidates"
