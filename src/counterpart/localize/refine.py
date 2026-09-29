@@ -27,12 +27,22 @@ from counterpart.segment.threshold import (
 )
 
 
-def _significant_components(mask: np.ndarray, min_area: int) -> np.ndarray:
+def _significant_components(mask: np.ndarray, min_area: int, min_thickness: int = 0) -> np.ndarray:
+    """Keep components above ``min_area``; optionally require survival of an erosion by
+    ``min_thickness`` (thin slivers along a silhouette are not missing pieces)."""
     n, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), 8)
     keep = np.zeros_like(mask, dtype=bool)
     for label in range(1, n):
-        if stats[label, cv2.CC_STAT_AREA] >= min_area:
-            keep |= labels == label
+        if stats[label, cv2.CC_STAT_AREA] < min_area:
+            continue
+        component = labels == label
+        if min_thickness > 0:
+            struct = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE, (2 * min_thickness + 1, 2 * min_thickness + 1)
+            )
+            if not cv2.erode(component.astype(np.uint8), struct).any():
+                continue  # too thin to be a missing piece
+        keep |= component
     return keep
 
 
@@ -60,6 +70,7 @@ def symmetry_gap_mask(
     open_kernel: int = 5,
     dilate_px: int = 4,
     max_gap_frac: float = 0.5,
+    min_thickness_px: int = 5,
 ) -> np.ndarray:
     """Damage hint from a mirror test about the object's own bounding-box axis.
 
@@ -83,7 +94,9 @@ def symmetry_gap_mask(
         )
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_kernel, open_kernel))
     opened = cv2.morphologyEx(gap.astype(np.uint8), cv2.MORPH_OPEN, kernel).astype(bool)
-    keep = _significant_components(opened, max(64, int(min_area_frac * float(obj.sum()))))
+    keep = _significant_components(
+        opened, max(64, int(min_area_frac * float(obj.sum()))), min_thickness=min_thickness_px
+    )
     if not keep.any():
         raise ValueError("no significant mirror gap found; please provide a hand mask")
     if dilate_px > 0:
@@ -99,19 +112,24 @@ def missing_piece_mask(
     seg_cfg: SegmentCfg,
     *,
     dilate_px: int = 4,
+    min_thickness_px: int = 5,
 ) -> np.ndarray:
     """Union of the mirror-gap and hull-concavity hints (demo convenience).
 
     The mirror test is precise on symmetric objects but abstains on asymmetric ones;
     the concavity test works on any silhouette but only recovers the part of a large
-    cut that the new convex hull does not bridge. Together they cover the common
-    missing-piece demos; both are documented as rough hints (SPEC.md §5.2.3).
+    cut that the new convex hull does not bridge. **The largest connected component
+    is kept** — the demo assumes a single missing piece, and natural features (a
+    vase's mouth, shoulders) would otherwise be flagged alongside it. Both hints are
+    rough by design (SPEC.md §5.2.3); a hand mask remains the primary source.
     """
     candidates: list[np.ndarray] = []
     errors: list[str] = []
     for hint in (symmetry_gap_mask, concavity_mask):
         try:
-            candidates.append(hint(image, seg_cfg, dilate_px=dilate_px))
+            candidates.append(
+                hint(image, seg_cfg, dilate_px=dilate_px, min_thickness_px=min_thickness_px)
+            )
         except ValueError as exc:
             errors.append(f"{hint.__name__}: {exc}")
     if not candidates:
@@ -119,7 +137,12 @@ def missing_piece_mask(
     union = np.zeros_like(candidates[0], dtype=bool)
     for mask in candidates:
         union |= mask
-    return union
+
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(union.astype(np.uint8), 8)
+    if n <= 1:
+        raise ValueError("automatic hints are empty")
+    largest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    return labels == largest
 
 
 def concavity_mask(
@@ -130,6 +153,7 @@ def concavity_mask(
     open_kernel: int = 5,
     dilate_px: int = 4,
     max_concavity_frac: float = 0.6,
+    min_thickness_px: int = 5,
 ) -> np.ndarray:
     """Damage hint from the concavities of the object silhouette.
 
@@ -167,13 +191,9 @@ def concavity_mask(
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_kernel, open_kernel))
     opened = cv2.morphologyEx(concave.astype(np.uint8), cv2.MORPH_OPEN, kernel).astype(bool)
 
-    # keep only components large enough to be a missing piece, not edge noise
+    # keep only components that are large *and* thick enough to be a missing piece
     min_area = max(64, int(min_area_frac * float(obj.sum())))
-    n, labels, stats, _ = cv2.connectedComponentsWithStats(opened.astype(np.uint8), 8)
-    keep = np.zeros_like(opened)
-    for label in range(1, n):
-        if stats[label, cv2.CC_STAT_AREA] >= min_area:
-            keep |= labels == label
+    keep = _significant_components(opened, min_area, min_thickness=min_thickness_px)
     if not keep.any():
         raise ValueError("no significant concavity found; please provide a hand mask")
 

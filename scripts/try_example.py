@@ -20,7 +20,7 @@ import numpy as np
 
 from counterpart import io as cio
 from counterpart.config import load_config
-from counterpart.localize.refine import concavity_mask, should_be_object_mask
+from counterpart.localize.refine import missing_piece_mask, should_be_object_mask
 from counterpart.viz.panels import side_by_side
 from counterpart.webapp import reconstruct
 
@@ -43,16 +43,30 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     image = cio.read_image(image_path)
+    from counterpart.segment.threshold import object_mask as _object_mask
+    from counterpart.segment.threshold import square_crop_box
+
     if args.mask:
         mask = cio.read_mask(Path(args.mask))
         hint_source = "hand mask"
         obj_override = None
+        box_mask = mask | _object_mask(image, cfg.segment)
     else:
-        mask = concavity_mask(image, cfg.segment)
+        mask = missing_piece_mask(image, cfg.segment)
         obj_override = should_be_object_mask(image, cfg.segment)
-        hint_source = "concavity heuristic"
+        hint_source = "auto hint (mirror gap + concavity)"
+        box_mask = obj_override
+
+    # crop policy (SPEC.md §5.1): square box around the object bbox + 15% margin;
+    # reconstruct() then only resizes to the model resolution
+    x0, y0, side = square_crop_box(box_mask, cfg.segment.crop_margin)
+    image = image[y0 : y0 + side, x0 : x0 + side]
+    mask = mask[y0 : y0 + side, x0 : x0 + side]
+    if obj_override is not None:
+        obj_override = obj_override[y0 : y0 + side, x0 : x0 + side]
     print(
-        f"{name}: {image.shape[1]}x{image.shape[0]} | hint: {hint_source} | mask px: {int(mask.sum())}"
+        f"{name}: crop {side}px | hint: {hint_source} | mask px: {int(mask.sum())} "
+        f"({100 * mask.sum() / mask.size:.1f}% of the crop)"
     )
 
     result = reconstruct(
