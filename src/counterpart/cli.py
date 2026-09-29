@@ -119,7 +119,7 @@ def demo(
 
     sample_dir = out / image.stem
     candidates_dir = sample_dir / "candidates"
-    candidates_dir.mkdir(parents=True, exists=True)
+    candidates_dir.mkdir(parents=True, exist_ok=True)
 
     size = gen_cfg.resolution
     damaged, damage_mask, _crop = _fit_square(image_raw, mask_raw, size)
@@ -545,7 +545,7 @@ def viz(
 
     if kind == "panel":
         out_dir = out or (runs_dir / experiment / "results" / f"panels_{split}")
-        out_dir.mkdir(parents=True, exists=True)
+        out_dir.mkdir(parents=True, exist_ok=True)
         written = 0
         for index in picked:
             sample_id = sample_ids[index]
