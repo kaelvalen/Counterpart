@@ -33,6 +33,7 @@
           python
           pkgs.uv
           pkgs.git
+          pkgs.nodejs_22
           # Build toolchain for source-built deps (PyPatchMatch, optional extras)
           pkgs.cmake
           pkgs.ninja

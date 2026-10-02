@@ -19,7 +19,8 @@ from typing import Annotated, Any
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from counterpart import io as cio
 from counterpart.config import Cfg, load_config
@@ -206,10 +207,20 @@ class JobRunner:
 RUNNER = JobRunner()
 app = FastAPI(title="counterpart", docs_url=None, redoc_url=None)
 
+APP_DIR = STATIC_DIR / "app"  # built React bundle (web/ -> vite build)
+if APP_DIR.exists():
+    app.mount("/app", StaticFiles(directory=APP_DIR, html=True), name="app")
 
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+@app.get("/", response_model=None)
+def index() -> RedirectResponse | HTMLResponse:
+    """React app when built, legacy single-file page otherwise."""
+    if APP_DIR.exists():
+        return RedirectResponse("/app/")
+    legacy = STATIC_DIR / "index.html"
+    if legacy.exists():
+        return HTMLResponse(legacy.read_text(encoding="utf-8"))
+    raise HTTPException(status_code=503, detail="arayüz derlenmemiş: web/ içinde `npm install && npm run build` çalıştırın")
 
 
 @app.get("/api/meta")

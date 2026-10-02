@@ -16,3 +16,6 @@ runs/
 .vscode/
 .idea/
 .DS_Store
+
+# web frontend
+web/node_modules/
