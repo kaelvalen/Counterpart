@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ImageGeneration } from "@/components/agents/image-generation";
+import { TodoList, type TodoItem } from "@/components/agents/todo-list";
+import { ToolResult } from "@/components/agents/tool-result";
+import { MorphingLightbox, type LightboxImage } from "@/components/motion/morphing-lightbox";
 
 type Stage = { label: string };
 type JobResult = {
@@ -182,6 +186,46 @@ export default function App() {
   const pct = Math.round((job?.progress ?? 0) * 100);
   const result = job?.status === "done" ? job.result ?? null : null;
 
+  const stageItems: TodoItem[] = useMemo(() => {
+    const stage = job?.stage ?? "";
+    const done = job?.status === "done";
+    const order = ["prepare", "generate", "score", "uncertainty", "done"];
+    const current = stage ? order.indexOf(stage) : -1;
+    const step = (index: number, title: string, progress?: number): TodoItem => ({
+      id: title,
+      title,
+      status: done || current > index ? "completed" : current === index ? "in-progress" : "pending",
+      progress: current === index ? progress : undefined,
+    });
+    return [
+      step(0, "Görsel hazırlandı (kırpma + maske)"),
+      step(1, "Adaylar üretiliyor", job?.progress),
+      step(2, "Klasik terimlerle puanlama"),
+      step(3, "Belirsizlik haritası ve seçim"),
+    ];
+  }, [job]);
+
+  const generationStatus = useMemo(() => {
+    if (!job) return "queued" as const;
+    if (job.status === "error") return "error" as const;
+    if (job.status === "done") return "complete" as const;
+    if (job.status === "queued") return "queued" as const;
+    return job.stage === "generate" ? ("generating" as const) : ("refining" as const);
+  }, [job]);
+
+  const lightboxImages: LightboxImage[] = useMemo(
+    () =>
+      (result?.candidates ?? []).map((c) => ({
+        id: String(c.idx),
+        src: c.url,
+        alt: `aday ${c.idx}`,
+        width: 512,
+        height: 512,
+        caption: `#${c.idx} · skor ${c.score}${c.best ? " · seçilen" : ""}`,
+      })),
+    [result],
+  );
+
   return (
     <>
       <header>
@@ -293,15 +337,18 @@ export default function App() {
 
           {error && <div className="err">Hata: {error}</div>}
 
-          {running && (
+          {(running || job?.status === "done") && (
             <div className="progress">
-              <div className="progline">
-                <span>{job?.stage_label ?? "hazırlanıyor…"}</span>
-                <span>{pct}%</span>
-              </div>
-              <div className="bar">
-                <i style={{ width: `${pct}%` }} />
-              </div>
+              <TodoList
+                items={stageItems}
+                title={
+                  running
+                    ? `İşlem hattı — ${job?.stage_label ?? "hazırlanıyor"} · ${pct}%`
+                    : "İşlem hattı tamamlandı"
+                }
+                defaultOpen
+                collapseOnComplete
+              />
             </div>
           )}
         </section>
@@ -317,7 +364,15 @@ export default function App() {
             <div>
               <div className="shots">
                 <figure>
-                  <img src={result.images.best} alt="en iyi tamamlama" />
+                  <ImageGeneration
+                    status={generationStatus}
+                    prompt={prompt || undefined}
+                    resolution="512 × 512"
+                    size="fluid"
+                    label="en iyi tamamlama"
+                  >
+                    <img src={result.images.best} alt="en iyi tamamlama" />
+                  </ImageGeneration>
                   <figcaption>en iyi tamamlama (klasik birleşim, mod A)</figcaption>
                 </figure>
                 <figure>
@@ -325,33 +380,32 @@ export default function App() {
                   <figcaption>piksel belirsizliği (aday ayrışması)</figcaption>
                 </figure>
               </div>
-              <div className="stats">
-                <div className="stat">
-                  en iyi skor: <b>{result.best_score}</b>
+
+              <ToolResult
+                tool="counterpart · score"
+                title="Klasik birleşim (mod A)"
+                status="success"
+                kind="custom"
+                meta={`${result.n} aday · maske: ${result.hand_mask ? "elle çizildi" : "otomatik"}`}
+              >
+                <div className="stats">
+                  <div className="stat">
+                    en iyi skor: <b>{result.best_score}</b>
+                  </div>
+                  <div className="stat">
+                    ortalama belirsizlik: <b>{result.mean_uncertainty}</b>
+                  </div>
+                  <div className="stat">
+                    seçilen aday: <b>#{result.best_idx}</b>
+                  </div>
+                  <div className="stat">
+                    aday: <b>{result.n}</b>
+                  </div>
                 </div>
-                <div className="stat">
-                  ortalama belirsizlik: <b>{result.mean_uncertainty}</b>
-                </div>
-                <div className="stat">
-                  aday: <b>{result.n}</b>
-                </div>
-                <div className="stat">
-                  maske: <b>{result.hand_mask ? "elle çizildi" : "otomatik"}</b>
-                </div>
-              </div>
-              <h2 className="sub">Adaylar</h2>
-              <div className="gallery">
-                {result.candidates.map((c) => (
-                  <figure key={c.idx} className={c.best ? "best" : ""}>
-                    <a href={c.url} target="_blank" rel="noreferrer">
-                      <img src={c.url} alt={`aday ${c.idx}`} />
-                    </a>
-                    <figcaption>
-                      #{c.idx} · {c.score}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
+              </ToolResult>
+
+              <h2 className="sub">Adaylar — karta tıkla, büyüt</h2>
+              <MorphingLightbox images={lightboxImages} label="aday tamamlamaları" />
             </div>
           )}
 
