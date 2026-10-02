@@ -9,6 +9,7 @@ project cache layout.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -48,10 +49,21 @@ def reconstruct(
     prompt: str | None = None,
     category: str | None = None,
     object_mask_override: np.ndarray | None = None,
+    progress: Callable[[str, float], None] | None = None,
 ) -> dict[str, np.ndarray | float]:
-    """Run generate -> score -> select on one image+mask; returns panel-ready arrays."""
+    """Run generate -> score -> select on one image+mask; returns panel-ready arrays.
+
+    ``progress(stage, fraction)`` is called with stages ``prepare``/``generate``/
+    ``score``/``uncertainty``/``done`` so the web UI can follow along.
+    """
+
+    def _report(stage: str, fraction: float) -> None:
+        if progress is not None:
+            progress(stage, fraction)
+
     from counterpart.segment.threshold import object_mask
 
+    _report("prepare", 0.02)
     gen_cfg = cfg.generator.model_copy(update={"n_candidates": n})
     if prompt:
         gen_cfg = gen_cfg.model_copy(update={"prompts": [prompt]})
@@ -101,11 +113,13 @@ def reconstruct(
         for s in specs
         if s.idx not in existing or not (candidates_dir / f"cand_{s.idx:03d}.png").exists()
     ]
+    _report("generate", 0.05)
     if todo:
         generator = InpaintGenerator.load(gen_cfg)
         try:
-            for spec in todo:
+            for done, spec in enumerate(todo, start=1):
                 candidate, seconds = generator.generate_one(damaged, gen_mask, spec)
+                _report("generate", 0.05 + 0.75 * done / max(len(todo), 1))
                 cio.write_image(candidates_dir / f"cand_{spec.idx:03d}.png", candidate)
                 cio.append_jsonl(
                     root / "candidates.jsonl",
@@ -127,19 +141,31 @@ def reconstruct(
 
     temp_cfg = cfg.model_copy(deep=True)
     temp_cfg.project.paths.runs_dir = runs_dir  # type: ignore[assignment]
+    _report("generate", 0.85)
     frame = score_sample(temp_cfg, "webapp", "demo", tag)
     best_idx = int(frame.loc[frame["combined_A"].idxmax(), "idx"])
+    _report("score", 0.92)
 
     candidates = [cio.read_image(candidates_dir / f"cand_{int(i):03d}.png") for i in frame["idx"]]
     uncertainty = _dispersion(candidates)
     uncertainty[~damage_mask] = 0.0
+    _report("uncertainty", 0.97)
 
     strip = side_by_side([damaged, mask_rgb(damage_mask), *candidates[:8]])
+    _report("done", 1.0)
     return {
         "damaged": damaged,
+        "damage_mask": damage_mask,
+        "gen_mask": gen_mask,
+        "object_mask": obj,
         "best": candidates[list(frame["idx"]).index(best_idx)],
         "uncertainty": uncertainty_heatmap(uncertainty, damage_mask),
+        "uncertainty_raw": uncertainty,
         "candidates": strip,
+        "candidate_images": candidates,
+        "candidate_idx": [int(i) for i in frame["idx"]],
+        "combined_scores": [float(v) for v in frame["combined_A"]],
+        "best_idx": best_idx,
         "mean_uncertainty": float(uncertainty.mean()),
         "best_score": float(frame["combined_A"].max()),
     }

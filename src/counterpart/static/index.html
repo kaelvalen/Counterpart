@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>counterpart — hasarlı nesne rekonstrüksiyonu</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#111823; --panel2:#0e141d; --line:#1e2939;
+    --text:#e6edf6; --muted:#8fa3bb; --accent:#5b8cff; --accent2:#39d0c8;
+    --ok:#2fbf71; --warn:#f0b429; --bad:#e5534b; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#16233a 0%,var(--bg) 55%) no-repeat,var(--bg);
+       color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif}
+  a{color:var(--accent)}
+  header{display:flex;align-items:center;gap:14px;padding:18px 26px;border-bottom:1px solid var(--line);
+         background:rgba(9,13,19,.75);backdrop-filter:blur(6px);position:sticky;top:0;z-index:10}
+  .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+        display:grid;place-items:center;font-weight:800;color:#04101f}
+  .brand b{font-size:17px;letter-spacing:.2px}
+  .brand span{color:var(--muted);font-size:12.5px;display:block;margin-top:-2px}
+  .pill{margin-left:auto;font-size:12px;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:999px}
+  .pill b{color:var(--text)}
+  main{max-width:1220px;margin:22px auto 60px;padding:0 22px;display:grid;grid-template-columns:400px 1fr;gap:22px}
+  @media(max-width:1000px){main{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .card h2{margin:0 0 12px;font-size:14px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+  .steps{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+  .step{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:4px 10px}
+  .step.on{color:var(--text);border-style:solid;border-color:var(--accent)}
+  .drop{border:1.5px dashed #2b3d55;border-radius:12px;padding:26px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
+  .drop:hover{border-color:var(--accent);color:var(--text)}
+  .canvas-wrap{position:relative;margin-top:12px;display:none}
+  canvas{width:100%;border-radius:10px;border:1px solid var(--line);display:block;touch-action:none}
+  .tools{display:flex;align-items:center;gap:10px;margin-top:10px;color:var(--muted);font-size:13px}
+  input[type=range]{accent-color:var(--accent)}
+  label.field{display:block;margin-top:14px;font-size:13px;color:var(--muted)}
+  input[type=text]{width:100%;margin-top:6px;background:#0a0f16;border:1px solid var(--line);color:var(--text);
+                   padding:10px 12px;border-radius:10px;font-size:14px}
+  button{font:inherit;border-radius:10px;border:1px solid var(--line);background:#141d2a;color:var(--text);
+         padding:10px 14px;cursor:pointer}
+  button.primary{background:linear-gradient(135deg,var(--accent),#3f6fe0);border-color:transparent;font-weight:600}
+  button.primary:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:transparent}
+  .progress{margin-top:16px;display:none}
+  .bar{height:8px;background:#0a0f16;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+  .progline{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin-bottom:8px}
+  .results{display:none}
+  .shots{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}
+  .shots figure{margin:0}
+  .shots img{width:100%;border-radius:10px;border:1px solid var(--line);display:block;background:#0a0f16}
+  figcaption{color:var(--muted);font-size:12.5px;margin-top:6px}
+  .stats{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap}
+  .stat{border:1px solid var(--line);background:#0a0f16;border-radius:10px;padding:8px 12px;font-size:13px;color:var(--muted)}
+  .stat b{color:var(--text)}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+  .gallery figure{margin:0;position:relative}
+  .gallery img{width:100%;border-radius:9px;border:1px solid var(--line);display:block}
+  .gallery figure.best img{border-color:var(--ok);box-shadow:0 0 0 2px rgba(47,191,113,.25)}
+  .gallery figcaption{font-size:11.5px;text-align:center}
+  .how{margin-top:22px}
+  .how table{width:100%;border-collapse:collapse;font-size:13.5px}
+  .how td{border-top:1px solid var(--line);padding:8px 6px;color:var(--muted)}
+  .how td:first-child{color:var(--text);white-space:nowrap;font-weight:600}
+  .err{display:none;border:1px solid rgba(229,83,75,.5);background:rgba(229,83,75,.08);color:#ffb4b0;
+       border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13.5px}
+  footer{color:var(--muted);font-size:12.5px;text-align:center;padding:26px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">c</div>
+  <div class="brand"><b>counterpart</b><span>hasarlı nesne rekonstrüksiyonu — aday üret · klasik skorla seç · belirsizliği haritala</span></div>
+  <div class="pill" id="gpuPill">durum: <b>hazır</b></div>
+</header>
+
+<main>
+  <!-- SOL: girdi -->
+  <section class="card">
+    <h2>Girdi</h2>
+    <div class="steps">
+      <span class="step on" id="s1">1 · Görsel</span>
+      <span class="step" id="s2">2 · Eksik bölge</span>
+      <span class="step" id="s3">3 · Üret & seç</span>
+    </div>
+
+    <div class="drop" id="drop">Görseli buraya bırak ya da tıkla<br><small>PNG / JPG · nesne arka plandan ayrılabilir olmalı</small></div>
+    <input type="file" id="file" accept="image/*" hidden />
+
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="canvas"></canvas>
+      <div class="tools">
+        <span>Fırça</span><input type="range" id="brush" min="6" max="80" value="26" />
+        <button class="ghost" id="clearMask">Maskeyi temizle</button>
+      </div>
+      <div class="tools" style="color:var(--muted)">Boyamazsan bölge otomatik bulunur (ayna farkı + silüet çukurluğu).</div>
+    </div>
+
+    <label class="field">Prompt (opsiyonel)
+      <input type="text" id="prompt" placeholder="a complete white ceramic vase, product photo, white background" />
+    </label>
+    <label class="field">Aday sayısı: <b id="nOut">8</b>
+      <input type="range" id="n" min="2" max="16" value="8" style="width:100%" />
+    </label>
+
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="primary" id="run" disabled>Rekonstrüksiyon</button>
+      <button class="ghost" id="reset">Sıfırla</button>
+    </div>
+    <div class="err" id="err"></div>
+
+    <div class="progress" id="progress">
+      <div class="progline"><span id="stage">hazırlanıyor…</span><span id="pct">0%</span></div>
+      <div class="bar"><i id="bar"></i></div>
+    </div>
+  </section>
+
+  <!-- SAĞ: sonuç -->
+  <section class="card">
+    <h2>Sonuç</h2>
+    <div id="empty" style="color:var(--muted)">Sonuçlar burada görünecek: en iyi tamamlama, belirsizlik haritası ve aday galerisi.</div>
+
+    <div class="results" id="results">
+      <div class="shots">
+        <figure><img id="bestImg" alt="best completion" /><figcaption>en iyi tamamlama (klasik birleşim, mod A)</figcaption></figure>
+        <figure><img id="uncImg" alt="uncertainty" /><figcaption>piksel belirsizliği (aday ayrışması)</figcaption></figure>
+      </div>
+      <div class="stats">
+        <div class="stat">en iyi skor: <b id="bestScore">–</b></div>
+        <div class="stat">ortalama belirsizlik: <b id="meanU">–</b></div>
+        <div class="stat">aday: <b id="nCand">–</b></div>
+        <div class="stat">maske: <b id="maskSrc">–</b></div>
+      </div>
+      <h2 style="margin-top:18px">Adaylar <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(skora göre sıralı; yeşil = seçilen)</span></h2>
+      <div class="gallery" id="gallery"></div>
+    </div>
+
+    <div class="how">
+      <h2>Sistem ne yapıyor?</h2>
+      <table>
+        <tr><td>1 · Segment</td><td>nesne silüetini arka plandan ayırır (eşikleme / hull)</td></tr>
+        <tr><td>2 · Hasar</td><td>eksik bölgeyi bulur (çizdiğin maske ya da otomatik ipucu)</td></tr>
+        <tr><td>3 · Üretim</td><td>dondurulmuş SD1.5-inpainting ile N aday tamamlama</td></tr>
+        <tr><td>4 · Skorlama</td><td>6 klasik terim: sınır · ayna simetrisi · dönme simetrisi · doku · frekans · kontur</td></tr>
+        <tr><td>5 · Seçim</td><td>görüntü içi z-normalize + eşit ağırlık → en tutarlı aday; belirsizlik = adayların ayrışması</td></tr>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>counterpart · deneysel demo — çıktılar "makul"dur, "doğru" olduğu iddia edilmez</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { file: null, img: null, painting: false, last: {x:0,y:0}, dirty: false, timer: null };
+
+fetch("/api/meta").then(r => r.json()).then(m => {
+  $("gpuPill").innerHTML = m.gpu ? `GPU: <b>${m.gpu.replace("NVIDIA ","")}</b>` : "CPU modu";
+}).catch(() => {});
+
+/* ---------- görsel yükleme ---------- */
+$("drop").addEventListener("click", () => $("file").click());
+["dragover","dragenter"].forEach(e => $("drop").addEventListener(e, ev => { ev.preventDefault(); }));
+$("drop").addEventListener("drop", ev => { ev.preventDefault(); if (ev.dataTransfer.files[0]) loadFile(ev.dataTransfer.files[0]); });
+$("file").addEventListener("change", ev => { if (ev.target.files[0]) loadFile(ev.target.files[0]); });
+
+function loadFile(file){
+  state.file = file; state.dirty = false;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    state.img = img;
+    const c = $("canvas");
+    const w = 380, h = Math.round(img.height * (w / img.width));
+    c.width = img.width; c.height = img.height;
+    c.style.aspectRatio = `${img.width}/${img.height}`;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    state.base = ctx.getImageData(0, 0, c.width, c.height);
+    $("canvasWrap").style.display = "block"; $("drop").style.display = "none";
+    $("run").disabled = false; setStep(2);
+  };
+  img.src = url;
+}
+
+/* ---------- maske boyama ---------- */
+const canvas = $("canvas");
+function pos(ev){
+  const r = canvas.getBoundingClientRect();
+  return { x: (ev.clientX - r.left) * canvas.width / r.width,
+           y: (ev.clientY - r.top)  * canvas.height / r.height };
+}
+function paint(p){
+  const ctx = canvas.getContext("2d");
+  ctx.strokeStyle = "rgba(255,255,255,1)"; ctx.lineCap = "round";
+  ctx.lineWidth = parseInt($("brush").value, 10) * canvas.width / 380;
+  ctx.beginPath(); ctx.moveTo(state.last.x, state.last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+  state.dirty = true;
+}
+canvas.addEventListener("pointerdown", ev => { state.painting = true; state.last = pos(ev); paint(state.last); canvas.setPointerCapture(ev.pointerId); });
+canvas.addEventListener("pointermove", ev => { if (state.painting) { paint(pos(ev)); } });
+canvas.addEventListener("pointerup", () => { state.painting = false; });
+$("clearMask").addEventListener("click", () => {
+  const ctx = canvas.getContext("2d"); ctx.putImageData(state.base, 0, 0); state.dirty = false;
+});
+
+/* ---------- çalıştır ---------- */
+$("n").addEventListener("input", () => $("nOut").textContent = $("n").value);
+$("reset").addEventListener("click", () => location.reload());
+
+async function maskBlob(){
+  const off = document.createElement("canvas");
+  off.width = canvas.width; off.height = canvas.height;
+  const ctx = off.getContext("2d");
+  ctx.drawImage(canvas, 0, 0);
+  const data = ctx.getImageData(0, 0, off.width, off.height).data;
+  // sadece beyaz fırça izlerini maske olarak gönder (taban görüntüyü siyaha indir)
+  const out = ctx.createImageData(off.width, off.height);
+  for (let i = 0; i < data.length; i += 4){
+    const v = (data[i] > 235 && data[i+1] > 235 && data[i+2] > 235) ? 255 : 0;
+    out.data[i] = out.data[i+1] = out.data[i+2] = v; out.data[i+3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  return new Promise(res => off.toBlob(b => res(new File([b], "mask.png", {type:"image/png"})), "image/png"));
+}
+
+$("run").addEventListener("click", async () => {
+  if (!state.file) return;
+  $("err").style.display = "none"; $("results").style.display = "none"; $("empty").style.display = "none";
+  $("progress").style.display = "block"; $("run").disabled = true; setStep(3);
+  const fd = new FormData();
+  fd.append("image", state.file);
+  if (state.dirty) fd.append("mask", await maskBlob());
+  fd.append("prompt", $("prompt").value);
+  fd.append("n", $("n").value);
+  try{
+    const res = await fetch("/api/jobs", { method: "POST", body: fd });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const { job_id } = await res.json();
+    poll(job_id);
+  } catch(e){ fail(e.message); }
+});
+
+function poll(id){
+  state.timer = setInterval(async () => {
+    try{
+      const job = await (await fetch(`/api/jobs/${id}`)).json();
+      $("stage").textContent = job.stage_label || job.stage;
+      const pct = Math.round((job.progress || 0) * 100);
+      $("pct").textContent = pct + "%"; $("bar").style.width = pct + "%";
+      if (job.status === "done"){ clearInterval(state.timer); show(job.result); }
+      else if (job.status === "error"){ clearInterval(state.timer); fail(job.error); }
+    } catch(e){ /* poll tekrar dener */ }
+  }, 1200);
+}
+
+function show(r){
+  $("progress").style.display = "none"; $("results").style.display = "block";
+  const bust = "?v=" + Date.now();
+  $("bestImg").src = r.images.best + bust;
+  $("uncImg").src = r.images.uncertainty + bust;
+  $("bestScore").textContent = r.best_score;
+  $("meanU").textContent = r.mean_uncertainty;
+  $("nCand").textContent = r.n;
+  $("maskSrc").textContent = r.hand_mask ? "elle çizildi" : "otomatik";
+  const g = $("gallery"); g.innerHTML = "";
+  r.candidates.forEach(c => {
+    const fig = document.createElement("figure");
+    if (c.best) fig.className = "best";
+    fig.innerHTML = `<img src="${c.url}${bust}" alt="aday ${c.idx}" /><figcaption>#${c.idx} · ${c.score}</figcaption>`;
+    g.appendChild(fig);
+  });
+  $("run").disabled = false;
+}
+
+function fail(msg){
+  $("progress").style.display = "none"; $("run").disabled = false;
+  $("err").textContent = "Hata: " + msg; $("err").style.display = "block";
+}
+
+function setStep(active){
+  [1,2,3].forEach(i => $("s"+i).classList.toggle("on", i <= active));
+}
+</script>
+</body>
+</html>

@@ -498,6 +498,18 @@ def fit_weights(
 
 
 @app.command()
+def serve(
+    host: Annotated[str, typer.Option("--host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port")] = 8000,
+) -> None:
+    """Web arayüzünü başlat (http://127.0.0.1:8000)."""
+    from counterpart.server import serve as _serve
+
+    console.print(f"counterpart web: [bold]http://{host}:{port}[/bold]")
+    _serve(host=host, port=port)
+
+
+@app.command()
 def web(
     config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)] = Path(
         "configs/default.yaml"

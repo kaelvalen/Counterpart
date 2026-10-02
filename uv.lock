@@ -186,6 +186,7 @@ source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
     { name = "diffusers" },
+    { name = "fastapi" },
     { name = "huggingface-hub" },
     { name = "lpips" },
     { name = "matplotlib" },
@@ -195,6 +196,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "pydantic" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "safetensors" },
@@ -207,6 +209,7 @@ dependencies = [
     { name = "tqdm" },
     { name = "transformers" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -233,6 +236,7 @@ requires-dist = [
     { name = "accelerate" },
     { name = "diffusers", specifier = ">=0.32" },
     { name = "einops", marker = "extra == 'sam'" },
+    { name = "fastapi" },
     { name = "gradio", marker = "extra == 'demo'" },
     { name = "huggingface-hub" },
     { name = "lpips" },
@@ -245,6 +249,7 @@ requires-dist = [
     { name = "pyarrow" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pypatchmatch", marker = "extra == 'patchmatch'" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "safetensors" },
@@ -258,6 +263,7 @@ requires-dist = [
     { name = "tqdm" },
     { name = "transformers", specifier = ">=4.46" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 provides-extras = ["sam", "demo", "patchmatch"]
 
